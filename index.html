@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recompensas Deli Snacks</title>
+<meta name="description" content="App de recompensas para promotoras de Deli Snacks">
+<meta name="theme-color" content="#E94C1D">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Recompensas">
+<style>
+  :root{
+    --n:#E94C1D; --n2:#C63D12; --r:#E30613; --az:#1D7EAA; --az2:#1269B0; --os:#17303F; --mut:#5B6B76;
+    --bg:#F3F7FA; --card:#FFFFFF; --bd:#DCE6EC;
+    --ok:#17804A; --okbg:#E3F4EA; --no:#B91C26; --nobg:#FCE7E7; --pe:#8A5A00; --pebg:#FFF1D6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--os);-webkit-font-smoothing:antialiased}
+  #app{max-width:520px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 16px calc(48px + env(safe-area-inset-bottom))}
+  .instalar{margin-top:22px;padding:14px 16px;border-radius:14px;background:#E8F3F8;color:var(--az2);font-size:14px;font-weight:600;line-height:1.4}
+  .instalar .btn{margin-top:10px;background:var(--az);color:#fff}
+  h1,h2,h3,h4{margin:0}
+  label{display:block;font-size:14px;font-weight:600;margin:14px 0 6px}
+  input,select{width:100%;font:inherit;font-size:16px;padding:12px 14px;border:1.5px solid var(--bd);border-radius:12px;background:#fff;color:var(--os)}
+  input:focus,select:focus{outline:none;border-color:var(--n);box-shadow:0 0 0 3px rgba(29,126,170,.22)}
+  .btn{font:inherit;font-weight:700;font-size:16px;border:0;border-radius:12px;padding:13px 16px;width:100%;margin-top:14px;cursor:pointer}
+  .btn:focus-visible{outline:3px solid var(--os);outline-offset:2px}
+  .primario{background:var(--n);color:#fff}
+  .primario:active{background:var(--n2)}
+  .secundario{background:#fff;color:var(--n2);border:1.5px solid var(--n)}
+  .grande{display:flex;flex-direction:column;align-items:center;gap:2px;padding:16px;font-size:17px}
+  .grande small{font-weight:500;font-size:13px;opacity:.9}
+  .mini{width:auto;margin:0;padding:8px 12px;font-size:14px;background:#fff;border:1.5px solid var(--bd);color:var(--os)}
+  .mini.ok{border-color:var(--ok);color:var(--ok)}
+  .mini.no{border-color:var(--no);color:var(--no)}
+
+  /* Login */
+  .login{padding-top:28px}
+  .logo{display:block;width:210px;max-width:70%;height:auto}
+  .logo-s{display:block;height:34px;width:auto;margin-bottom:10px}
+  .login h1{font-size:22px;line-height:1.2;margin:14px 0 22px}
+  .login h1 b{display:block;color:var(--n);font-size:40px;letter-spacing:-1px;text-transform:uppercase}
+  .tabs{display:flex;gap:6px;background:#fff;border:1.5px solid var(--bd);border-radius:14px;padding:4px;margin:8px 0 4px}
+  .tabs button{flex:1;font:inherit;font-weight:700;font-size:15px;border:0;border-radius:10px;padding:10px;background:transparent;color:var(--mut);cursor:pointer}
+  .tabs button.on{background:var(--az);color:#fff}
+
+  /* Panel */
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .top small{color:var(--mut);text-transform:capitalize}
+  .top h2{font-size:24px;color:var(--az2)}
+  .card{background:var(--card);border:1.5px solid var(--bd);border-radius:16px;padding:16px;margin-bottom:12px}
+  .card h3{font-size:17px}
+  .card h4{font-size:15px;margin-top:20px}
+  .sub{color:var(--mut);font-size:14px;margin:4px 0 0}
+  .destacado{background:linear-gradient(135deg,var(--n),var(--r));color:#fff;border:0}
+  .destacado small{opacity:.9}
+  .monto{font-size:44px;font-weight:800;letter-spacing:-1px;margin:4px 0}
+  .monto span{font-size:18px;font-weight:600;opacity:.9}
+  .fila{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600}
+  .tot{margin-top:14px;align-items:center} .tot b{font-size:22px;color:var(--n2)}
+  .marcas{margin-top:6px}
+  .marca-ok{background:var(--okbg);color:var(--ok);font-weight:700;border-radius:12px;padding:12px 14px;margin-top:10px}
+  .kpi-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .big{font-size:36px;font-weight:800;margin:6px 0}
+  .big span{font-size:18px;color:var(--mut);font-weight:600}
+  .barra{height:10px;background:#E3ECF1;border-radius:99px;overflow:hidden}
+  .barra i{display:block;height:100%;background:var(--az);border-radius:99px}
+  .datos{list-style:none;padding:0;margin:10px 0 0}
+  .datos li{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid #E8EEF2;font-size:15px}
+  .datos li:first-child{border-top:0}
+  .datos small{color:var(--mut);font-weight:500}
+  .chip{display:inline-block;font-size:13px;font-weight:700;border-radius:99px;padding:4px 10px;background:var(--pebg);color:var(--pe);white-space:nowrap}
+  .chip.ok{background:var(--okbg);color:var(--ok)} .chip.no{background:var(--nobg);color:var(--no)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px}
+  .seg-plat{display:flex;gap:8px;margin-top:12px}
+  .seg-plat button{flex:1;font:inherit;font-weight:700;padding:11px;border-radius:12px;border:1.5px solid var(--bd);background:#fff;color:var(--mut);cursor:pointer}
+  .seg-plat button.on{border-color:var(--az);background:#E8F3F8;color:var(--az2)}
+  .input-at{display:flex;align-items:center;border:1.5px solid var(--bd);border-radius:12px;background:#fff;padding-left:14px}
+  .input-at:focus-within{border-color:var(--n);box-shadow:0 0 0 3px rgba(29,126,170,.22)}
+  .input-at span{color:var(--mut);font-weight:700}
+  .input-at input{border:0;box-shadow:none;padding-left:6px}
+  .lista{list-style:none;padding:0;margin:8px 0 0}
+  .lista li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #E8EEF2;font-size:15px}
+  .lista li span{font-weight:600;overflow-wrap:anywhere}
+  .lista small{color:var(--mut);white-space:nowrap}
+  .rojo{color:var(--no)}
+  .vacio{color:var(--mut);font-size:14px;margin:8px 0 0}
+
+  /* Supervisor */
+  .rank-h{display:flex;align-items:center;gap:10px}
+  .rank-h b{flex:1;font-size:16px}
+  .pos{width:30px;height:30px;border-radius:50%;background:#E8F3F8;color:var(--az2);font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+  .monto-s{font-weight:800;font-size:18px;color:var(--n2)}
+  .selfie{display:flex;gap:12px}
+  .foto{width:110px;height:140px;border-radius:12px;background:#E3ECF1;flex:none;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:var(--mut);padding:6px}
+  .foto img{width:100%;height:100%;object-fit:cover;display:block}
+  .foto:has(img){padding:0}
+  .selfie-info{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0}
+  .selfie-info small{color:var(--mut)}
+  .selfie-info a{color:var(--az2)}
+  .acciones{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
+
+  /* Estados */
+  .oculto{display:none!important}
+  #cargando{position:fixed;inset:0;background:rgba(243,247,250,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:20}
+  #cargando p{font-weight:600;margin-top:12px}
+  .spinner{width:40px;height:40px;border:4px solid #D6E6EE;border-top-color:var(--az);border-radius:50%;animation:g .8s linear infinite}
+  @keyframes g{to{transform:rotate(360deg)}}
+  .toast{position:fixed;left:16px;right:16px;bottom:20px;max-width:488px;margin:0 auto;padding:14px 16px;border-radius:12px;font-weight:600;z-index:30;background:var(--os);color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+  .toast.error{background:var(--no)} .toast.ok{background:var(--ok)}
+  @media (prefers-reduced-motion: reduce){.spinner{animation-duration:2s}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div id="cargando" class="oculto" role="status" aria-live="polite"><div class="spinner"></div><p id="cargandoTxt">Cargando…</p></div>
+<div id="toast" class="oculto" role="alert"></div>
+<input type="file" id="camara" accept="image/*" capture="user" hidden>
+
+<script>
+  const LOGO = 'logo.png';
+  const API = 'https://script.google.com/macros/s/AKfycbyubIHvrTvmUnKg1L7jfKs6o4JB-3h0UAM1M_nyDX3cLg-BXB-I2Skej4HqQUsxpP8Z2g/exec';
+  const S = { id:null, pin:null, sup:null, plat:'Instagram', tipo:null, tab:'ranking', mes:null, fecha:null, proms:[] };
+  const $ = s => document.querySelector(s);
+  const app = $('#app');
+  const DIAS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+  const mem = {
+    get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+    set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+    del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+  };
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function fechaBonita(f){ const [y,m,d]=f.split('-').map(Number); return `${DIAS[new Date(y,m-1,d).getDay()]} ${d} de ${MESES[m-1]}`; }
+  function fechaCorta(f){ const [y,m,d]=String(f).split('-').map(Number); return `${d} ${MESES[m-1].slice(0,3)}`; }
+
+  async function api(fn, ...a){
+    let r, j;
+    try { r = await fetch(API, { method: 'POST', body: JSON.stringify({ fn: fn, args: a }) }); }
+    catch(e){ throw new Error('Sin conexión. Revisa tu internet e intenta de nuevo.'); }
+    try { j = await r.json(); }
+    catch(e){ throw new Error('El servidor no respondió. Intenta de nuevo en un momento.'); }
+    if (!j.ok) throw new Error(String(j.error || 'Error desconocido').replace(/^Error:\s*/,''));
+    return j.data;
+  }
+
+  /* ---------- Instalación como app ---------- */
+  let promptInstalar = null;
+  const esApp = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInstalar = e; pintarInstalar(); });
+  window.addEventListener('appinstalled', () => { promptInstalar = null; pintarInstalar(); });
+  function pintarInstalar(){
+    const el = document.getElementById('instalar');
+    if (!el) return;
+    if (esApp()) { el.innerHTML = ''; return; }
+    if (promptInstalar) {
+      el.innerHTML = '<div class="instalar">Instala la app en tu celular para abrirla más rápido.<button class="btn" onclick="instalarApp()">📲 Instalar app</button></div>';
+    } else if (esIOS()) {
+      el.innerHTML = '<div class="instalar">📲 Para instalar la app en iPhone: toca el botón <b>Compartir</b> de Safari y luego <b>Agregar a inicio</b>.</div>';
+    } else {
+      el.innerHTML = '';
+    }
+  }
+  async function instalarApp(){
+    if (!promptInstalar) return;
+    promptInstalar.prompt();
+    try { await promptInstalar.userChoice; } catch(e){}
+    promptInstalar = null; pintarInstalar();
+  }
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+  function cargando(on, t){ $('#cargando').classList.toggle('oculto', !on); if(t) $('#cargandoTxt').textContent = t; }
+  let toastT;
+  function toast(msg, tipo){
+    const t = $('#toast'); t.textContent = msg; t.className = 'toast ' + (tipo||'');
+    clearTimeout(toastT); toastT = setTimeout(() => t.className = 'oculto', 4000);
+  }
+  async function run(fn, txt, ...a){
+    cargando(true, txt || 'Cargando…');
+    try { return await api(fn, ...a); }
+    catch(e){ toast(e.message, 'error'); throw e; }
+    finally { cargando(false); }
+  }
+
+  /* ---------- Inicio y acceso ---------- */
+  async function iniciar(){
+    try { S.proms = await run('listarPromotoras', 'Abriendo…'); } catch(e){ S.proms = []; }
+    const id = mem.get('rp_id'), pin = mem.get('rp_pin'), sp = mem.get('rp_sup');
+    if (id && pin){
+      try { const d = await run('panelPromotora', 'Cargando tu panel…', id, pin); S.id=id; S.pin=pin; panel(d); return; }
+      catch(e){ mem.del('rp_id'); mem.del('rp_pin'); }
+    }
+    if (sp){
+      try { const d = await run('loginSupervisor', 'Entrando…', sp); abrirSup(sp, d); return; }
+      catch(e){ mem.del('rp_sup'); }
+    }
+    vistaLogin('prom');
+  }
+
+  function vistaLogin(modo){
+    modo = modo || 'prom';
+    app.innerHTML = `
+      <div class="login">
+        <img class="logo" src="${LOGO}" alt="Deli Snacks Distribuidora">
+        <h1>Tus resultados tienen <b>recompensa</b></h1>
+        <div class="tabs" role="tablist">
+          <button role="tab" aria-selected="${modo==='prom'}" class="${modo==='prom'?'on':''}" onclick="vistaLogin('prom')">Promotora</button>
+          <button role="tab" aria-selected="${modo==='sup'}" class="${modo==='sup'?'on':''}" onclick="vistaLogin('sup')">Supervisor</button>
+        </div>
+        ${modo==='prom' ? `
+          <label for="selProm">Tu nombre</label>
+          <select id="selProm"><option value="">Selecciona tu nombre</option>
+            ${S.proms.map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join('')}
+          </select>
+          <label for="pinProm">PIN</label>
+          <input id="pinProm" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8">
+          <button class="btn primario" onclick="entrarProm()">Entrar</button>`
+        : `
+          <label for="pinSup">PIN de supervisor</label>
+          <input id="pinSup" type="password" inputmode="numeric" maxlength="8">
+          <button class="btn primario" onclick="entrarSup()">Entrar al panel</button>`}
+        <div id="instalar"></div>
+      </div>`;
+    pintarInstalar();
+  }
+
+  async function entrarProm(){
+    const id = $('#selProm').value, pin = $('#pinProm').value.trim();
+    if (!id) return toast('Selecciona tu nombre', 'error');
+    if (!pin) return toast('Escribe tu PIN', 'error');
+    try {
+      const d = await run('panelPromotora', 'Entrando…', id, pin);
+      S.id = id; S.pin = pin; mem.set('rp_id', id); mem.set('rp_pin', pin); panel(d);
+    } catch(e){}
+  }
+  function salir(){
+    ['rp_id','rp_pin','rp_sup'].forEach(k => mem.del(k));
+    S.id = S.pin = S.sup = null; vistaLogin('prom');
+  }
+
+  /* ---------- Panel de la promotora ---------- */
+  function estadoKpi(v){ return v ? '<span class="chip ok">Cumple</span>' : '<span class="chip no">No cumple aún</span>'; }
+
+  function panel(d){
+    const r = d.res;
+    const pct = Math.min(100, Math.round(r.seguidores / r.meta * 100));
+    const faltan = Math.max(0, r.meta - r.seguidores);
+    app.innerHTML = `
+      <img class="logo-s" src="${LOGO}" alt="Deli Snacks">
+      <header class="top">
+        <div><small>${esc(d.mesNombre)}</small><h2>Hola, ${esc(d.nombre.split(' ')[0])}</h2></div>
+        <button class="btn mini" onclick="salir()">Salir</button>
+      </header>
+
+      <section class="card destacado">
+        <small>Si el mes cerrara hoy, ganarías</small>
+        <div class="monto">$${r.monto.toFixed(2)} <span>de $${d.bono}</span></div>
+        <div class="fila"><span>${r.cumplidos} de 3 KPIs cumplidos</span><span>⭐ ${r.puntos} puntos</span></div>
+      </section>
+
+      <section class="card">
+        <h3>Hoy, ${esc(fechaBonita(d.fecha))}</h3>
+        <p class="sub">Tu horario: ${esc(d.horario.entrada)} a ${esc(d.horario.salida)}</p>
+        <div class="marcas">
+          ${d.entrada
+            ? `<div class="marca-ok">✅ Entrada marcada a las ${esc(d.entrada)}${d.vestHoy ? ` · Uniforme: ${esc(d.vestHoy)}` : ''}</div>`
+            : `<button class="btn primario grande" onclick="marcar('Entrada')">📸 Marcar entrada<small>Selfie de cuerpo entero con el uniforme</small></button>`}
+          ${d.entrada ? (d.salida
+            ? `<div class="marca-ok">✅ Salida marcada a las ${esc(d.salida)}</div>`
+            : `<button class="btn secundario grande" onclick="marcar('Salida')">📸 Marcar salida<small>Selfie al terminar la jornada</small></button>`) : ''}
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="kpi-h"><h3>Seguidores</h3>${estadoKpi(r.kpi.seguidores)}</div>
+        <div class="big">${r.seguidores}<span> / ${r.meta}</span></div>
+        <div class="barra" role="progressbar" aria-valuenow="${r.seguidores}" aria-valuemin="0" aria-valuemax="${r.meta}"><i style="width:${pct}%"></i></div>
+        <p class="sub">${faltan ? `Te faltan ${faltan} para cumplir la meta.` : '¡Meta cumplida! Sigue sumando puntos.'}</p>
+      </section>
+
+      <section class="card">
+        <div class="kpi-h"><h3>Horario</h3>${estadoKpi(r.kpi.horario)}</div>
+        <ul class="datos">
+          <li><span>Inasistencias</span><b>${r.inasistencias} <small>de ${d.maximos.inas} permitidas</small></b></li>
+          <li><span>Llegadas tarde</span><b>${r.tardes}</b></li>
+          <li><span>Salidas antes de hora o sin marcar</span><b>${r.salidas}</b></li>
+          <li><span>Total de incidencias</span><b>${r.incidencias} <small>de ${d.maximos.inc} permitidas</small></b></li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <div class="kpi-h"><h3>Vestimenta</h3>${estadoKpi(r.kpi.vestimenta)}</div>
+        <ul class="datos">
+          <li><span>Faltas de uniforme</span><b>${r.faltasVest} <small>de ${d.maximos.vest} permitidas</small></b></li>
+          <li><span>Selfies por revisar</span><b>${r.pendVest}</b></li>
+        </ul>
+      </section>
+
+      <section class="card">
+        <h3>Registrar nuevo seguidor</h3>
+        <p class="sub">Escribe el usuario de la persona que acaba de seguir a Deli Snacks o Salty.</p>
+        <div class="seg-plat">
+          <button class="${S.plat==='Instagram'?'on':''}" onclick="plat('Instagram')">Instagram</button>
+          <button class="${S.plat==='TikTok'?'on':''}" onclick="plat('TikTok')">TikTok</button>
+        </div>
+        <label for="usr">Usuario</label>
+        <div class="input-at"><span>@</span><input id="usr" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off" onkeydown="if(event.key==='Enter')agregarSeg()"></div>
+        <button class="btn primario" onclick="agregarSeg()">Agregar seguidor</button>
+
+        <h4>Registrados este mes (${r.seguidores})</h4>
+        ${d.segs.length
+          ? `<ul class="lista">${d.segs.map(s => `<li><span>@${esc(s.usuario)}</span><small>${esc(s.plataforma)} · ${esc(fechaCorta(s.fecha))}${s.estado==='Rechazado' ? ' · <b class="rojo">Rechazado</b>' : ''}</small></li>`).join('')}</ul>`
+          : '<p class="vacio">Todavía no has registrado seguidores este mes. ¡Empieza con el primero!</p>'}
+      </section>`;
+  }
+
+  function plat(p){
+    S.plat = p;
+    document.querySelectorAll('.seg-plat button').forEach(b => b.classList.toggle('on', b.textContent === p));
+  }
+
+  async function agregarSeg(){
+    const u = $('#usr').value.trim();
+    if (!u) return toast('Escribe el usuario del seguidor', 'error');
+    try {
+      const d = await run('registrarSeguidor', 'Guardando seguidor…', S.id, S.pin, S.plat, u);
+      panel(d); toast('Seguidor agregado ✅', 'ok');
+      const i = $('#usr'); if (i) i.focus();
+    } catch(e){}
+  }
+
+  /* ---------- Selfie de entrada / salida ---------- */
+  function marcar(tipo){ S.tipo = tipo; const c = $('#camara'); c.value = ''; c.click(); }
+
+  function comprimir(file){
+    return new Promise((res, rej) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const s = Math.min(1, 1000 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg', 0.72).split(',')[1]);
+      };
+      img.onerror = rej; img.src = url;
+    });
+  }
+  function gps(){
+    return new Promise(res => {
+      if (!navigator.geolocation) return res({});
+      navigator.geolocation.getCurrentPosition(
+        p => res({ lat: p.coords.latitude.toFixed(6), lng: p.coords.longitude.toFixed(6) }),
+        () => res({}), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+    });
+  }
+
+  $('#camara').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    let b64, pos;
+    cargando(true, 'Preparando la foto…');
+    try { b64 = await comprimir(f); cargando(true, 'Obteniendo ubicación…'); pos = await gps(); }
+    catch(err){ cargando(false); return toast('No se pudo leer la foto. Intenta de nuevo.', 'error'); }
+    try {
+      const d = await run('marcar', 'Guardando ' + S.tipo.toLowerCase() + '…', S.id, S.pin, S.tipo, b64, pos.lat || '', pos.lng || '');
+      panel(d); toast(S.tipo + ' registrada ✅', 'ok');
+    } catch(err){}
+  });
+
+  /* ---------- Panel del supervisor ---------- */
+  async function entrarSup(){
+    const p = $('#pinSup').value.trim();
+    if (!p) return toast('Escribe el PIN', 'error');
+    try { const d = await run('loginSupervisor', 'Entrando…', p); abrirSup(p, d); } catch(e){}
+  }
+  function abrirSup(pin, d){
+    S.sup = pin; mem.set('rp_sup', pin);
+    S.mes = d.mes; S.fecha = d.fecha; S.proms = d.promotoras;
+    supTab('ranking');
+  }
+  function supTab(t){
+    S.tab = t;
+    app.innerHTML = `
+      <img class="logo-s" src="${LOGO}" alt="Deli Snacks">
+      <header class="top"><div><small>Panel</small><h2>Supervisor</h2></div><button class="btn mini" onclick="salir()">Salir</button></header>
+      <nav class="tabs" role="tablist">
+        ${[['ranking','Ranking'],['vest','Vestimenta'],['just','Justificar']].map(([k,n]) =>
+          `<button role="tab" aria-selected="${S.tab===k}" class="${S.tab===k?'on':''}" onclick="supTab('${k}')">${n}</button>`).join('')}
+      </nav>
+      <div id="supC" style="margin-top:12px"></div>`;
+    if (t === 'ranking') verRanking(); else if (t === 'vest') verVest(); else verJust();
+  }
+
+  async function verRanking(){
+    try {
+      const d = await run('resumenMes', 'Calculando resultados…', S.sup, S.mes);
+      const k = v => v ? 'ok' : 'no';
+      $('#supC').innerHTML = `
+        <div class="card">
+          <label for="mes" style="margin-top:0">Mes</label>
+          <input id="mes" type="month" value="${esc(S.mes)}" onchange="if(this.value){S.mes=this.value;verRanking()}">
+          <div class="fila tot"><span>Total en bonos de ${esc(d.mesNombre)}</span><b>$${d.total.toFixed(2)}</b></div>
+        </div>
+        ${d.filas.length ? d.filas.map((f, i) => `
+          <div class="card">
+            <div class="rank-h"><span class="pos">${i+1}</span><b>${esc(f.nombre)}</b><span class="monto-s">$${f.monto.toFixed(2)}</span></div>
+            <div class="chips">
+              <span class="chip ${k(f.kpi.seguidores)}">Seguidores ${f.seguidores}/${f.meta}</span>
+              <span class="chip ${k(f.kpi.horario)}">Horario: ${f.inasistencias} inasist. · ${f.incidencias} incid.</span>
+              <span class="chip ${k(f.kpi.vestimenta)}">Uniforme: ${f.faltasVest} faltas${f.pendVest ? ` · ${f.pendVest} por revisar` : ''}</span>
+            </div>
+            <p class="sub">⭐ ${f.puntos} puntos · ${f.cumplidos} de 3 KPIs</p>
+          </div>`).join('') : '<p class="vacio">No hay promotoras activas.</p>'}`;
+    } catch(e){}
+  }
+
+  async function verVest(){
+    try {
+      const l = await run('vestimentaDia', 'Cargando selfies…', S.sup, S.fecha);
+      const pend = l.filter(x => x.vest === 'Pendiente').length;
+      const cls = v => v === 'Aprobada' ? 'ok' : v === 'Falta' ? 'no' : '';
+      $('#supC').innerHTML = `
+        <div class="card">
+          <label for="fec" style="margin-top:0">Fecha</label>
+          <input id="fec" type="date" value="${esc(S.fecha)}" onchange="if(this.value){S.fecha=this.value;verVest()}">
+          <p class="sub">${l.length} entradas · ${pend} por revisar</p>
+          ${pend ? `<button class="btn secundario" onclick="aprobarTodas()">Aprobar las ${pend} pendientes</button>` : ''}
+        </div>
+        ${l.length ? l.map(x => `
+          <div class="card selfie" id="r_${esc(x.reg)}">
+            <div class="foto" data-foto="${esc(x.foto)}">Cargando foto…</div>
+            <div class="selfie-info">
+              <b>${esc(x.nombre)}</b>
+              <small>Entrada ${esc(x.hora)} · ${x.lat ? `<a href="https://maps.google.com/?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">Ver ubicación</a>` : 'sin ubicación'}</small>
+              <span class="chip ${cls(x.vest)}">${esc(x.vest)}</span>
+              <div class="acciones">
+                <button class="btn mini ok" onclick="vest('${esc(x.reg)}','Aprobada')">Aprobar</button>
+                <button class="btn mini no" onclick="vest('${esc(x.reg)}','Falta')">Falta de uniforme</button>
+              </div>
+            </div>
+          </div>`).join('') : '<p class="vacio">No hay entradas registradas en esta fecha.</p>'}`;
+      cargarFotos();
+    } catch(e){}
+  }
+  async function cargarFotos(){
+    for (const el of document.querySelectorAll('.foto[data-foto]')){
+      const id = el.dataset.foto;
+      if (!id){ el.textContent = 'Sin foto'; continue; }
+      try {
+        const src = await api('verFoto', S.sup, id);
+        if (!document.body.contains(el)) return;
+        el.innerHTML = `<img src="${src}" alt="Selfie de entrada">`;
+      } catch(e){ el.textContent = 'No se pudo cargar'; }
+    }
+  }
+  async function vest(reg, estado){
+    try {
+      await run('marcarVestimenta', 'Guardando…', S.sup, reg, estado);
+      const c = document.querySelector('#r_' + CSS.escape(reg) + ' .chip');
+      if (c){ c.textContent = estado; c.className = 'chip ' + (estado === 'Aprobada' ? 'ok' : 'no'); }
+      toast(estado === 'Aprobada' ? 'Uniforme aprobado ✅' : 'Falta registrada', 'ok');
+    } catch(e){}
+  }
+  async function aprobarTodas(){
+    try { const n = await run('aprobarPendientes', 'Aprobando…', S.sup, S.fecha); toast(n + ' selfies aprobadas ✅', 'ok'); verVest(); } catch(e){}
+  }
+
+  function verJust(){
+    $('#supC').innerHTML = `
+      <div class="card">
+        <h3>Justificar un día</h3>
+        <p class="sub">Un día justificado (permiso, reposo, cambio de ruta) no cuenta como inasistencia ni como incidencia de horario.</p>
+        <label for="jp">Promotora</label>
+        <select id="jp"><option value="">Selecciona</option>${S.proms.map(p => `<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join('')}</select>
+        <label for="jf">Fecha</label>
+        <input id="jf" type="date" value="${esc(S.fecha)}">
+        <label for="jm">Motivo</label>
+        <input id="jm" maxlength="120">
+        <button class="btn primario" onclick="guardarJust()">Guardar justificación</button>
+      </div>`;
+  }
+  async function guardarJust(){
+    const id = $('#jp').value, f = $('#jf').value, m = $('#jm').value.trim();
+    if (!id || !f || !m) return toast('Completa promotora, fecha y motivo', 'error');
+    try { await run('justificar', 'Guardando…', S.sup, id, f, m); toast('Día justificado ✅', 'ok'); $('#jm').value = ''; } catch(e){}
+  }
+
+  iniciar();
+</script>
+</body>
+</html>
