@@ -46,7 +46,7 @@
   .login h1{font-size:22px;line-height:1.2;margin:14px 0 22px}
   .login h1 b{display:block;color:var(--n);font-size:40px;letter-spacing:-1px;text-transform:uppercase}
   .tabs{display:flex;gap:6px;background:#fff;border:1.5px solid var(--bd);border-radius:14px;padding:4px;margin:8px 0 4px}
-  .tabs button{flex:1;font:inherit;font-weight:700;font-size:15px;border:0;border-radius:10px;padding:10px;background:transparent;color:var(--mut);cursor:pointer}
+  .tabs button{flex:1;min-width:0;font:inherit;font-weight:700;font-size:14px;border:0;border-radius:10px;padding:10px 4px;background:transparent;color:var(--mut);cursor:pointer}
   .tabs button.on{background:var(--az);color:#fff}
 
   /* Panel */
@@ -104,6 +104,16 @@
   .selfie-info small{color:var(--mut)}
   .selfie-info a{color:var(--az2)}
   .acciones{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto}
+  .filtros{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .filtros label{margin-top:0}
+  .resumen{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .seg-item{display:flex;flex-direction:column;gap:8px}
+  .seg-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .seg-top b{font-size:16px;overflow-wrap:anywhere}
+  .seg-top small{display:block;color:var(--mut);font-weight:500;margin-top:2px}
+  .seg-acc{display:flex;flex-wrap:wrap;gap:6px}
+  a.mini{display:inline-block;text-decoration:none;color:var(--az2);border-color:var(--az)}
+  .mas{margin-top:4px}
 
   /* Estados */
   .oculto{display:none!important}
@@ -393,11 +403,11 @@
       <img class="logo-s" src="${LOGO}" alt="Deli Snacks">
       <header class="top"><div><small>Panel</small><h2>Supervisor</h2></div><button class="btn mini" onclick="salir()">Salir</button></header>
       <nav class="tabs" role="tablist">
-        ${[['ranking','Ranking'],['vest','Vestimenta'],['just','Justificar']].map(([k,n]) =>
+        ${[['ranking','Ranking'],['vest','Vestimenta'],['seg','Seguidores'],['just','Justificar']].map(([k,n]) =>
           `<button role="tab" aria-selected="${S.tab===k}" class="${S.tab===k?'on':''}" onclick="supTab('${k}')">${n}</button>`).join('')}
       </nav>
       <div id="supC" style="margin-top:12px"></div>`;
-    if (t === 'ranking') verRanking(); else if (t === 'vest') verVest(); else verJust();
+    if (t === 'ranking') verRanking(); else if (t === 'vest') verVest(); else if (t === 'seg') verSeg(); else verJust();
   }
 
   async function verRanking(){
@@ -472,6 +482,75 @@
   }
   async function aprobarTodas(){
     try { const n = await run('aprobarPendientes', 'Aprobando…', S.sup, S.fecha); toast(n + ' selfies aprobadas ✅', 'ok'); verVest(); } catch(e){}
+  }
+
+  /* ---------- Revisión de seguidores ---------- */
+  const SG = { prom: '', estado: 'todos', lista: [], ver: 40 };
+  function perfilUrl(x){
+    return x.plataforma === 'TikTok' ? 'https://www.tiktok.com/@' + encodeURIComponent(x.usuario)
+                                     : 'https://www.instagram.com/' + encodeURIComponent(x.usuario) + '/';
+  }
+  async function verSeg(){
+    $('#supC').innerHTML = `
+      <div class="card">
+        <div class="filtros">
+          <div><label for="sgMes">Mes</label>
+            <input id="sgMes" type="month" value="${esc(S.mes)}" onchange="if(this.value){S.mes=this.value;cargarSeg()}"></div>
+          <div><label for="sgProm">Promotora</label>
+            <select id="sgProm" onchange="SG.prom=this.value;cargarSeg()"><option value="">Todas</option>
+              ${S.proms.map(p => `<option value="${esc(p.id)}" ${SG.prom===p.id?'selected':''}>${esc(p.nombre)}</option>`).join('')}
+            </select></div>
+        </div>
+        <label for="sgEst">Mostrar</label>
+        <select id="sgEst" onchange="SG.estado=this.value;SG.ver=40;pintarSeg()">
+          ${[['todos','Todos'],['Válido','Sin revisar'],['Verificado','Verificados'],['Rechazado','Rechazados']].map(([v,n]) =>
+            `<option value="${v}" ${SG.estado===v?'selected':''}>${n}</option>`).join('')}
+        </select>
+        <div class="resumen" id="sgRes"></div>
+      </div>
+      <div id="sgLista"></div>`;
+    cargarSeg();
+  }
+  async function cargarSeg(){
+    try {
+      SG.lista = await run('seguidoresSup', 'Cargando seguidores…', S.sup, S.mes, SG.prom);
+      SG.ver = 40; pintarSeg();
+    } catch(e){}
+  }
+  function pintarSeg(){
+    const L = SG.lista;
+    const c = e => L.filter(x => x.estado === e).length;
+    const res = $('#sgRes');
+    if (!res) return;
+    res.innerHTML = `<span class="chip">${c('Válido')} sin revisar</span>
+      <span class="chip ok">${c('Verificado')} verificados</span>
+      <span class="chip no">${c('Rechazado')} rechazados</span>`;
+    const f = SG.estado === 'todos' ? L : L.filter(x => x.estado === SG.estado);
+    const vis = f.slice(0, SG.ver);
+    const etq = { 'Válido': ['', 'Sin revisar'], 'Verificado': ['ok', 'Verificado'], 'Rechazado': ['no', 'Rechazado'] };
+    $('#sgLista').innerHTML = f.length ? vis.map(x => `
+      <div class="card seg-item" id="sg_${x.fila}">
+        <div class="seg-top">
+          <div><b>@${esc(x.usuario)}</b><small>${esc(x.plataforma)} · ${esc(x.nombre)} · ${esc(fechaCorta(x.fecha))} ${esc(x.hora)}</small></div>
+          <span class="chip ${etq[x.estado][0]}">${etq[x.estado][1]}</span>
+        </div>
+        <div class="seg-acc">
+          <a class="btn mini" href="${perfilUrl(x)}" target="_blank" rel="noopener">Ver perfil ↗</a>
+          ${x.estado !== 'Verificado' ? `<button class="btn mini ok" onclick="cambiarSeg(${x.fila},'Verificado')">✓ Verificar</button>` : ''}
+          ${x.estado !== 'Rechazado' ? `<button class="btn mini no" onclick="cambiarSeg(${x.fila},'Rechazado')">✕ Rechazar</button>`
+                                     : `<button class="btn mini" onclick="cambiarSeg(${x.fila},'Válido')">↺ Restaurar</button>`}
+        </div>
+      </div>`).join('') + (f.length > SG.ver ? `<button class="btn secundario mas" onclick="SG.ver+=40;pintarSeg()">Ver más (${f.length - SG.ver} restantes)</button>` : '')
+      : '<p class="vacio">No hay seguidores con este filtro.</p>';
+  }
+  async function cambiarSeg(fila, estado){
+    const x = SG.lista.find(y => y.fila === fila);
+    if (!x) return;
+    try {
+      await run('estadoSeguidor', 'Guardando…', S.sup, fila, x.usuario, estado);
+      x.estado = estado; pintarSeg();
+      toast(estado === 'Verificado' ? 'Seguidor verificado ✅' : estado === 'Rechazado' ? 'Seguidor rechazado: ya no cuenta' : 'Seguidor restaurado', 'ok');
+    } catch(e){}
   }
 
   function verJust(){
