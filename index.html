@@ -373,16 +373,18 @@
       catch(e){ el.innerHTML = `<p class="vacio">${esc(e.message)}</p>`; return; }
     }
     const L = V.listas;
-    if (!L.productos.length || !L.comercios.length) {
-      el.innerHTML = '<p class="vacio">Aún no hay ' + (!L.productos.length ? 'productos' : 'comercios') + ' cargados. Avísale al supervisor para que los agregue.</p>';
+    if (!L.productos.length) {
+      el.innerHTML = '<p class="vacio">Aún no hay productos cargados. Avísale al supervisor para que los agregue.</p>';
       return;
     }
     const precio = n => (L.productos.find(p => p.nombre === n) || {}).precio || 0;
     const total = V.items.reduce((a, it) => a + precio(it.producto) * (parseInt(it.unidades, 10) || 0), 0);
     el.innerHTML = `
-      <label for="vCom">Comercio</label>
-      <select id="vCom" onchange="V.comercio=this.value"><option value="">Selecciona el comercio</option>
-        ${L.comercios.map(c => `<option ${V.comercio===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+      <label for="vCom">¿En qué comercio estás?</label>
+      <input id="vCom" list="vComs" autocomplete="off" maxlength="80" placeholder="Ej. Bodega La Esquina, San Diego"
+        value="${esc(V.comercio)}" oninput="V.comercio=this.value">
+      <datalist id="vComs">${L.comercios.map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      <p class="sub">Escribe el nombre del negocio. Si ya se usó antes, elígelo de las sugerencias. Al guardar se registra tu ubicación.</p>
       <label>Productos vendidos</label>
       ${V.items.map((it, i) => `
         <div class="v-fila">
@@ -412,7 +414,7 @@
     pintarFormVenta();
   }
   async function guardarVenta(){
-    if (!V.comercio) return toast('Selecciona el comercio', 'error');
+    if (String(V.comercio).trim().length < 2) return toast('Escribe el nombre del comercio donde estás', 'error');
     const items = V.items.filter(it => it.producto || it.unidades);
     if (!items.length) return toast('Agrega al menos un producto', 'error');
     for (const it of items) {
@@ -422,9 +424,12 @@
     }
     const m = String(V.monto).trim().replace(',', '.');
     if (m === '' || isNaN(Number(m)) || Number(m) < 0) return toast('Escribe el monto cobrado', 'error');
+    cargando(true, 'Obteniendo ubicación…');
+    const pos = await gps();
     try {
-      const d = await run('registrarVenta', 'Guardando ventas…', S.id, S.pin, V.comercio,
-        items.map(it => ({ producto: it.producto, unidades: Number(it.unidades) })), m);
+      const d = await run('registrarVenta', 'Guardando ventas…', S.id, S.pin, V.comercio.trim(),
+        items.map(it => ({ producto: it.producto, unidades: Number(it.unidades) })), m, pos.lat || '', pos.lng || '');
+      V.listas = null;
       V.comercio = ''; V.items = [{ producto: '', unidades: '' }]; V.monto = '';
       panel(d); toast('Ventas guardadas ✅', 'ok');
     } catch(e){}
@@ -691,6 +696,7 @@
         <ul class="v-det">${v.detalle.map(x => `<li><span>${esc(x.producto)} × ${x.unidades}</span><span>${dinero(x.subtotal)}</span></li>`).join('')}</ul>
         <div class="v-montos"><span>Según lista: ${dinero(v.total)}</span><span>Cobrado: ${dinero(v.monto)}</span></div>
         <div class="seg-acc">
+          ${v.lat ? `<a class="btn mini" href="https://maps.google.com/?q=${encodeURIComponent(v.lat + ',' + v.lng)}" target="_blank" rel="noopener">Ver ubicación ↗</a>` : '<span class="chip">Sin ubicación</span>'}
           ${v.estado === 'Anulada' ? `<button class="btn mini" onclick="cambiarVen('${esc(v.idVenta)}','Válida')">↺ Restaurar</button>`
                                    : `<button class="btn mini no" onclick="cambiarVen('${esc(v.idVenta)}','Anulada')">✕ Anular</button>`}
         </div>
