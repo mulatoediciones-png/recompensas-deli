@@ -116,6 +116,15 @@
   .seg-acc{display:flex;flex-wrap:wrap;gap:6px}
   a.mini{display:inline-block;text-decoration:none;color:var(--az2);border-color:var(--az)}
   .mas{margin-top:4px}
+  .link-nom{font:inherit;font-weight:700;font-size:16px;background:none;border:0;padding:0;color:var(--az2);cursor:pointer;text-align:left}
+  .volver{width:auto;margin:0 0 12px;padding:8px 12px;font-size:14px;background:#fff;border:1.5px solid var(--bd);color:var(--os)}
+  .perfil{display:flex;gap:14px;align-items:center}
+  .avatar{width:76px;height:76px;border-radius:50%;overflow:hidden;background:#E3ECF1;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mut);text-align:center}
+  .avatar img{width:100%;height:100%;object-fit:cover;display:block}
+  .perfil h3{font-size:20px;color:var(--az2)}
+  .dia{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #E8EEF2;font-size:14px}
+  .dia:first-of-type{border-top:0}
+  .dia small{color:var(--mut)}
   .v-fila{display:grid;grid-template-columns:1fr 86px 36px;gap:8px;align-items:center;margin-top:8px}
   .v-fila input,.v-fila select{padding:11px 10px}
   .quitar{width:36px;height:44px;border-radius:10px;border:1.5px solid var(--bd);background:#fff;color:var(--no);font-size:18px;font-weight:700;cursor:pointer}
@@ -525,7 +534,7 @@
         </div>
         ${d.filas.length ? d.filas.map((f, i) => `
           <div class="card">
-            <div class="rank-h"><span class="pos">${i+1}</span><b>${esc(f.nombre)}</b><span class="monto-s">$${f.monto.toFixed(2)}</span></div>
+            <div class="rank-h"><span class="pos">${i+1}</span><b><button class="link-nom" onclick="verDetalle('${esc(f.id)}')">${esc(f.nombre)} ›</button></b><span class="monto-s">$${f.monto.toFixed(2)}</span></div>
             <div class="chips">
               <span class="chip ${k(f.kpi.seguidores)}">Seguidores ${f.seguidores}/${f.meta}</span>
               <span class="chip ${k(f.kpi.horario)}">Horario: ${f.inasistencias} inasist. · ${f.incidencias} incid.</span>
@@ -709,6 +718,62 @@
       const v = VS.lista.find(x => x.idVenta === id); if (v) v.estado = estado;
       pintarVen(); toast(estado === 'Anulada' ? 'Venta anulada: ya no cuenta' : 'Venta restaurada', 'ok');
     } catch(e){}
+  }
+
+  /* ---------- Resumen de una promotora ---------- */
+  async function verDetalle(id){
+    let d;
+    try { d = await run('detallePromotora', 'Cargando resumen…', S.sup, id, S.mes); } catch(e){ return; }
+    const r = d.res, k = v => v ? 'ok' : 'no';
+    const vcls = v => v === 'Aprobada' ? 'ok' : v === 'Falta' ? 'no' : '';
+    const segN = e => d.seguidores.filter(x => x.estado === e).length;
+    const vVal = d.ventas.filter(v => v.estado !== 'Anulada');
+    $('#supC').innerHTML = `
+      <button class="btn volver" onclick="verRanking()">‹ Volver al ranking</button>
+      <div class="card">
+        <div class="perfil">
+          <div class="avatar ${d.fotoId ? 'foto' : ''}" ${d.fotoId ? `data-foto="${esc(d.fotoId)}"` : ''}>${d.fotoId ? 'Cargando…' : 'Sin foto'}</div>
+          <div>
+            <h3>${esc(d.nombre)}</h3>
+            <p class="sub">${d.ingreso ? 'Ingresó el ' + esc(fechaCorta(d.ingreso)) : 'Fecha de ingreso sin cargar'}${d.activa ? '' : ' · Inactiva'}</p>
+            ${r ? `<p class="sub"><b class="monto-s">${dinero(r.monto)}</b> · ⭐ ${r.puntos} puntos · ${r.cumplidos} de 4 KPIs</p>` : ''}
+          </div>
+        </div>
+        ${r ? `<div class="chips">
+          <span class="chip ${k(r.kpi.seguidores)}">Seguidores ${r.seguidores}/${r.meta}</span>
+          <span class="chip ${k(r.kpi.horario)}">Horario: ${r.inasistencias} inasist. · ${r.incidencias} incid.</span>
+          <span class="chip ${k(r.kpi.vestimenta)}">Uniforme: ${r.faltasVest} faltas${r.pendVest ? ` · ${r.pendVest} por revisar` : ''}</span>
+          <span class="chip ${k(r.kpi.ventas)}">Ventas: ${dinero(r.ventas)}${r.metaVentas > 0 ? ' / ' + dinero(r.metaVentas) : ''}</span>
+        </div>` : ''}
+      </div>
+
+      <div class="card">
+        <h3>Asistencia del mes (${d.dias.length} días)</h3>
+        ${d.dias.length ? d.dias.map(x => `
+          <div class="dia">
+            <span><b>${esc(fechaCorta(x.fecha))}</b><br><small>Entrada ${esc(x.entrada || '—')} · Salida ${esc(x.salida || '—')}</small></span>
+            <span>${x.entrada ? `<span class="chip ${vcls(x.vest)}">${esc(x.vest)}</span>` : '<span class="chip no">Sin entrada</span>'}
+            ${x.lat ? ` <a class="btn mini" href="https://maps.google.com/?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">Mapa</a>` : ''}</span>
+          </div>`).join('') : '<p class="vacio">No ha marcado entradas este mes.</p>'}
+      </div>
+
+      <div class="card">
+        <h3>Permisos (${d.permisos.length})</h3>
+        ${d.permisos.length ? `<ul class="lista">${d.permisos.map(x => `<li><span>${esc(x.motivo)}</span><small>${esc(fechaCorta(x.fecha))}</small></li>`).join('')}</ul>` : '<p class="vacio">Sin permisos este mes.</p>'}
+      </div>
+
+      <div class="card">
+        <h3>Seguidores (${d.seguidores.length})</h3>
+        <div class="resumen"><span class="chip">${segN('Válido')} sin revisar</span><span class="chip ok">${segN('Verificado')} verificados</span><span class="chip no">${segN('Rechazado')} rechazados</span></div>
+        ${d.seguidores.length ? `<ul class="lista">${d.seguidores.slice(0, 30).map(x => `<li><span>@${esc(x.usuario)}</span><small>${esc(x.plataforma)} · ${esc(fechaCorta(x.fecha))}${x.estado === 'Rechazado' ? ' · <b class="rojo">Rechazado</b>' : ''}</small></li>`).join('')}</ul>` : '<p class="vacio">Sin seguidores este mes.</p>'}
+      </div>
+
+      <div class="card">
+        <h3>Ventas (${vVal.length} · ${dinero(vVal.reduce((a, v) => a + v.total, 0))})</h3>
+        ${d.ventas.length ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))} · ${v.unidades} unid.${v.estado === 'Anulada' ? ' · <b class="rojo">Anulada</b>' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>` : '<p class="vacio">Sin ventas este mes.</p>'}
+      </div>`;
+    window.scrollTo(0, 0);
+    cargarFotos();
   }
 
   function verJust(){
