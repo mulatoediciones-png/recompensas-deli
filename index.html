@@ -525,11 +525,11 @@
       <img class="logo-s" src="${LOGO}" alt="Deli Snacks">
       <header class="top"><div><small>Panel</small><h2>Supervisor</h2></div><button class="btn mini" onclick="salir()">Salir</button></header>
       <nav class="tabs tabs-sup" role="tablist">
-        ${[['ranking','Ranking'],['vest','Uniforme'],['seg','Seguidores'],['ven','Ventas'],['just','Permisos']].map(([k,n]) =>
+        ${[['ranking','Ranking'],['vest','Uniforme'],['seg','Seguidores'],['ven','Ventas'],['just','Permisos'],['eq','Equipo']].map(([k,n]) =>
           `<button role="tab" aria-selected="${S.tab===k}" class="${S.tab===k?'on':''}" onclick="supTab('${k}')">${n}</button>`).join('')}
       </nav>
       <div id="supC" style="margin-top:12px"></div>`;
-    if (t === 'ranking') verRanking(); else if (t === 'vest') verVest(); else if (t === 'seg') verSeg(); else if (t === 'ven') verVen(); else verJust();
+    if (t === 'ranking') verRanking(); else if (t === 'vest') verVest(); else if (t === 'seg') verSeg(); else if (t === 'ven') verVen(); else if (t === 'eq') verEquipo(); else verJust();
   }
 
   async function verRanking(){
@@ -831,6 +831,58 @@
       await run('estadoSeguidor', 'Guardando…', S.sup, fila, x.usuario, estado);
       x.estado = estado; pintarSegDet();
       toast(estado === 'Verificado' ? 'Seguidor verificado ✅' : estado === 'Rechazado' ? 'Seguidor rechazado: ya no cuenta' : 'Seguidor restaurado', 'ok');
+    } catch(e){}
+  }
+
+  /* ---------- Equipo: alta y edición de promotoras ---------- */
+  const EQ = { lista: [], edit: null };
+  async function verEquipo(){
+    try { EQ.lista = await run('equipo', 'Cargando equipo…', S.sup); } catch(e){ return; }
+    EQ.edit = null; pintarEquipo();
+  }
+  const pinNuevo = () => String(Math.floor(1000 + Math.random() * 9000));
+  function pintarEquipo(){
+    const E = EQ.edit;
+    const form = E ? `
+      <div class="card">
+        <h3>${E.id ? 'Editar promotora' : 'Nueva promotora'}</h3>
+        <label for="eqNom">Nombre y apellido</label>
+        <input id="eqNom" maxlength="60" value="${esc(E.nombre)}" oninput="EQ.edit.nombre=this.value">
+        <label for="eqPin">PIN (4 a 6 números)</label>
+        <div class="filtros">
+          <input id="eqPin" inputmode="numeric" maxlength="6" value="${esc(E.pin)}" oninput="EQ.edit.pin=this.value">
+          <button class="btn secundario" style="margin:0" onclick="EQ.edit.pin=pinNuevo();pintarEquipo()">Generar PIN</button>
+        </div>
+        <label for="eqIng">Fecha de ingreso</label>
+        <input id="eqIng" type="date" value="${esc(E.ingreso)}" onchange="EQ.edit.ingreso=this.value">
+        ${E.id ? `<label><input type="checkbox" style="width:auto;margin-right:8px" ${E.activa ? 'checked' : ''} onchange="EQ.edit.activa=this.checked">Activa (si la desmarcas, deja de aparecer en la app; su historial se guarda)</label>` : ''}
+        <button class="btn primario" onclick="guardarEq()">Guardar</button>
+        <button class="btn secundario" onclick="EQ.edit=null;pintarEquipo()">Cancelar</button>
+      </div>` : `<button class="btn primario" style="margin:0 0 12px" onclick="EQ.edit={nombre:'',pin:pinNuevo(),ingreso:S.fecha,activa:true};pintarEquipo()">+ Agregar promotora</button>`;
+    $('#supC').innerHTML = form + EQ.lista.map(p => `
+      <div class="card seg-item">
+        <div class="seg-top">
+          <div><b>${esc(p.nombre)}</b><small>PIN ${esc(p.pin)} · ${p.ingreso ? 'Ingresó el ' + esc(fechaCorta(p.ingreso)) : 'Sin fecha de ingreso'}</small></div>
+          <span class="chip ${p.activa ? 'ok' : 'no'}">${p.activa ? 'Activa' : 'Inactiva'}</span>
+        </div>
+        <div class="seg-acc"><button class="btn mini" onclick="editarEq('${esc(p.id)}')">Editar</button></div>
+      </div>`).join('');
+    window.scrollTo(0, 0);
+  }
+  function editarEq(id){
+    const p = EQ.lista.find(x => x.id === id); if (!p) return;
+    EQ.edit = { id: p.id, nombre: p.nombre, pin: p.pin, ingreso: p.ingreso, activa: p.activa };
+    pintarEquipo();
+  }
+  async function guardarEq(){
+    const E = EQ.edit;
+    if (String(E.nombre).trim().length < 2) return toast('Escribe el nombre de la promotora', 'error');
+    if (!/^\d{4,6}$/.test(String(E.pin).trim())) return toast('El PIN debe tener de 4 a 6 números', 'error');
+    try {
+      EQ.lista = await run('guardarPromotora', 'Guardando…', S.sup, E);
+      S.proms = EQ.lista.filter(p => p.activa).map(p => ({ id: p.id, nombre: p.nombre }));
+      toast(E.id ? 'Cambios guardados ✅' : 'Promotora agregada ✅', 'ok');
+      EQ.edit = null; pintarEquipo();
     } catch(e){}
   }
 
