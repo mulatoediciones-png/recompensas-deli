@@ -1,6 +1,6 @@
 // Recompensas Deli Snacks · service worker
 // Guarda la "cara" de la app para que abra rápido; los datos siempre se piden en línea.
-const VERSION = 'recompensas-v5';
+const VERSION = 'recompensas-v6';
 const ARCHIVOS = ['./', 'index.html', 'logo.png', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 

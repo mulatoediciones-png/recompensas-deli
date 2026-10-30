@@ -125,6 +125,13 @@
   .dia{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #E8EEF2;font-size:14px}
   .dia:first-of-type{border-top:0}
   .dia small{color:var(--mut)}
+  .foto img,.avatar img{cursor:zoom-in}
+  #visor{position:fixed;inset:0;background:rgba(10,20,28,.92);z-index:40;display:flex;align-items:center;justify-content:center;padding:56px 16px 16px}
+  #visor img{max-width:100%;max-height:100%;border-radius:12px;object-fit:contain}
+  #visor p{color:#fff;font-weight:600}
+  #visor .cerrar{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:44px;height:44px;border-radius:50%;border:0;background:#fff;color:var(--os);font-size:20px;font-weight:700;cursor:pointer}
+  .seg-det{padding:10px 0;border-top:1px solid #E8EEF2}
+  .seg-det:first-of-type{border-top:0}
   .v-fila{display:grid;grid-template-columns:1fr 86px 36px;gap:8px;align-items:center;margin-top:8px}
   .v-fila input,.v-fila select{padding:11px 10px}
   .quitar{width:36px;height:44px;border-radius:10px;border:1.5px solid var(--bd);background:#fff;color:var(--no);font-size:18px;font-weight:700;cursor:pointer}
@@ -149,6 +156,9 @@
 <main id="app"></main>
 <div id="cargando" class="oculto" role="status" aria-live="polite"><div class="spinner"></div><p id="cargandoTxt">Cargando…</p></div>
 <div id="toast" class="oculto" role="alert"></div>
+<div id="visor" class="oculto" role="dialog" aria-modal="true" aria-label="Vista ampliada de la foto" onclick="if(event.target===this)cerrarVisor()">
+  <button class="cerrar" onclick="cerrarVisor()" aria-label="Cerrar foto">✕</button><div id="visorC"></div>
+</div>
 <input type="file" id="camara" accept="image/*" capture="user" hidden>
 
 <script>
@@ -574,17 +584,34 @@
       cargarFotos();
     } catch(e){}
   }
+  const FOTOS = {};
+  async function fotoUrl(id){
+    if (!FOTOS[id]) FOTOS[id] = await api('verFoto', S.sup, id);
+    return FOTOS[id];
+  }
   async function cargarFotos(){
     for (const el of document.querySelectorAll('.foto[data-foto]')){
       const id = el.dataset.foto;
       if (!id){ el.textContent = 'Sin foto'; continue; }
       try {
-        const src = await api('verFoto', S.sup, id);
+        const src = await fotoUrl(id);
         if (!document.body.contains(el)) return;
-        el.innerHTML = `<img src="${src}" alt="Selfie de entrada">`;
+        el.innerHTML = `<img src="${src}" alt="Selfie de entrada. Toca para ampliar">`;
+        el.querySelector('img').onclick = () => verFotoGrande(id);
       } catch(e){ el.textContent = 'No se pudo cargar'; }
     }
   }
+  async function verFotoGrande(id){
+    const v = $('#visor'), c = $('#visorC');
+    c.innerHTML = '<p>Cargando foto…</p>';
+    v.classList.remove('oculto');
+    try {
+      const src = await fotoUrl(id);
+      if (!v.classList.contains('oculto')) c.innerHTML = `<img src="${src}" alt="Selfie ampliada">`;
+    } catch(e){ c.innerHTML = '<p>No se pudo cargar la foto.</p>'; }
+  }
+  function cerrarVisor(){ $('#visor').classList.add('oculto'); $('#visorC').innerHTML = ''; }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarVisor(); });
   async function vest(reg, estado){
     try {
       await run('marcarVestimenta', 'Guardando…', S.sup, reg, estado);
@@ -723,7 +750,10 @@
   /* ---------- Resumen de una promotora ---------- */
   async function verDetalle(id){
     let d;
-    try { d = await run('detallePromotora', 'Cargando resumen…', S.sup, id, S.mes); } catch(e){ return; }
+    cargando(true, 'Cargando resumen…');
+    try { [d, DS.lista] = await Promise.all([api('detallePromotora', S.sup, id, S.mes), api('seguidoresSup', S.sup, S.mes, id)]); }
+    catch(e){ toast(e.message, 'error'); return; }
+    finally { cargando(false); }
     const r = d.res, k = v => v ? 'ok' : 'no';
     const vcls = v => v === 'Aprobada' ? 'ok' : v === 'Falta' ? 'no' : '';
     const segN = e => d.seguidores.filter(x => x.estado === e).length;
@@ -753,6 +783,7 @@
           <div class="dia">
             <span><b>${esc(fechaCorta(x.fecha))}</b><br><small>Entrada ${esc(x.entrada || '—')} · Salida ${esc(x.salida || '—')}</small></span>
             <span>${x.entrada ? `<span class="chip ${vcls(x.vest)}">${esc(x.vest)}</span>` : '<span class="chip no">Sin entrada</span>'}
+            ${x.foto ? ` <button class="btn mini" onclick="verFotoGrande('${esc(x.foto)}')">Foto</button>` : ''}
             ${x.lat ? ` <a class="btn mini" href="https://maps.google.com/?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">Mapa</a>` : ''}</span>
           </div>`).join('') : '<p class="vacio">No ha marcado entradas este mes.</p>'}
       </div>
@@ -763,17 +794,44 @@
       </div>
 
       <div class="card">
-        <h3>Seguidores (${d.seguidores.length})</h3>
-        <div class="resumen"><span class="chip">${segN('Válido')} sin revisar</span><span class="chip ok">${segN('Verificado')} verificados</span><span class="chip no">${segN('Rechazado')} rechazados</span></div>
-        ${d.seguidores.length ? `<ul class="lista">${d.seguidores.slice(0, 30).map(x => `<li><span>@${esc(x.usuario)}</span><small>${esc(x.plataforma)} · ${esc(fechaCorta(x.fecha))}${x.estado === 'Rechazado' ? ' · <b class="rojo">Rechazado</b>' : ''}</small></li>`).join('')}</ul>` : '<p class="vacio">Sin seguidores este mes.</p>'}
+        <h3>Seguidores (${DS.lista.length})</h3>
+        <div id="detSeg"></div>
       </div>
 
       <div class="card">
         <h3>Ventas (${vVal.length} · ${dinero(vVal.reduce((a, v) => a + v.total, 0))})</h3>
         ${d.ventas.length ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))} · ${v.unidades} unid.${v.estado === 'Anulada' ? ' · <b class="rojo">Anulada</b>' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>` : '<p class="vacio">Sin ventas este mes.</p>'}
       </div>`;
+    DS.ver = 30; pintarSegDet();
     window.scrollTo(0, 0);
     cargarFotos();
+  }
+  const DS = { lista: [], ver: 30 };
+  function pintarSegDet(){
+    const el = document.getElementById('detSeg'); if (!el) return;
+    const L = DS.lista, n = e => L.filter(x => x.estado === e).length;
+    const etq = { 'Válido': ['', 'Sin revisar'], 'Verificado': ['ok', 'Verificado'], 'Rechazado': ['no', 'Rechazado'] };
+    el.innerHTML = `<div class="resumen"><span class="chip">${n('Válido')} sin revisar</span><span class="chip ok">${n('Verificado')} verificados</span><span class="chip no">${n('Rechazado')} rechazados</span></div>` +
+      (L.length ? L.slice(0, DS.ver).map(x => `
+        <div class="seg-det">
+          <div class="seg-top"><div><b>@${esc(x.usuario)}</b><small>${esc(x.plataforma)} · ${esc(fechaCorta(x.fecha))} ${esc(x.hora)}</small></div>
+            <span class="chip ${etq[x.estado][0]}">${etq[x.estado][1]}</span></div>
+          <div class="seg-acc" style="margin-top:8px">
+            <a class="btn mini" href="${perfilUrl(x)}" target="_blank" rel="noopener">Ver perfil ↗</a>
+            ${x.estado !== 'Verificado' ? `<button class="btn mini ok" onclick="cambiarSegDet(${x.fila},'Verificado')">✓ Verificar</button>` : ''}
+            ${x.estado !== 'Rechazado' ? `<button class="btn mini no" onclick="cambiarSegDet(${x.fila},'Rechazado')">✕ Rechazar</button>`
+                                       : `<button class="btn mini" onclick="cambiarSegDet(${x.fila},'Válido')">↺ Restaurar</button>`}
+          </div>
+        </div>`).join('') + (L.length > DS.ver ? `<button class="btn secundario mas" onclick="DS.ver+=30;pintarSegDet()">Ver más (${L.length - DS.ver} restantes)</button>` : '')
+      : '<p class="vacio">Sin seguidores este mes.</p>');
+  }
+  async function cambiarSegDet(fila, estado){
+    const x = DS.lista.find(y => y.fila === fila); if (!x) return;
+    try {
+      await run('estadoSeguidor', 'Guardando…', S.sup, fila, x.usuario, estado);
+      x.estado = estado; pintarSegDet();
+      toast(estado === 'Verificado' ? 'Seguidor verificado ✅' : estado === 'Rechazado' ? 'Seguidor rechazado: ya no cuenta' : 'Seguidor restaurado', 'ok');
+    } catch(e){}
   }
 
   function verJust(){
