@@ -307,7 +307,7 @@
 
       <section class="card">
         <h3>Hoy, ${esc(fechaBonita(d.fecha))}</h3>
-        <p class="sub">Tu horario: ${esc(d.horario.entrada)} a ${esc(d.horario.salida)}</p>
+        <p class="sub">${d.horario.sinEvento ? 'Hoy no tienes evento asignado.' : `Tu horario: ${esc(d.horario.entrada)} a ${esc(d.horario.salida)}${d.horario.lugar ? ' · ' + esc(d.horario.lugar) : ''}`}</p>
         <div class="marcas">
           ${d.entrada
             ? `<div class="marca-ok">✅ Entrada marcada a las ${esc(d.entrada)}${d.vestHoy ? ` · Uniforme: ${esc(d.vestHoy)}` : ''}</div>`
@@ -525,11 +525,11 @@
       <img class="logo-s" src="${LOGO}" alt="Deli Snacks">
       <header class="top"><div><small>Panel</small><h2>Supervisor</h2></div><button class="btn mini" onclick="salir()">Salir</button></header>
       <nav class="tabs tabs-sup" role="tablist">
-        ${[['ranking','Ranking'],['vest','Uniforme'],['seg','Seguidores'],['ven','Ventas'],['just','Permisos'],['eq','Equipo']].map(([k,n]) =>
+        ${[['ranking','Ranking'],['vest','Uniforme'],['seg','Seguidores'],['ven','Ventas'],['just','Permisos'],['age','Agenda'],['eq','Equipo']].map(([k,n]) =>
           `<button role="tab" aria-selected="${S.tab===k}" class="${S.tab===k?'on':''}" onclick="supTab('${k}')">${n}</button>`).join('')}
       </nav>
       <div id="supC" style="margin-top:12px"></div>`;
-    if (t === 'ranking') verRanking(); else if (t === 'vest') verVest(); else if (t === 'seg') verSeg(); else if (t === 'ven') verVen(); else if (t === 'eq') verEquipo(); else verJust();
+    if (t === 'ranking') verRanking(); else if (t === 'vest') verVest(); else if (t === 'seg') verSeg(); else if (t === 'ven') verVen(); else if (t === 'eq') verEquipo(); else if (t === 'age') verAgenda(); else verJust();
   }
 
   async function verRanking(){
@@ -884,6 +884,55 @@
       toast(E.id ? 'Cambios guardados ✅' : 'Promotora agregada ✅', 'ok');
       EQ.edit = null; pintarEquipo();
     } catch(e){}
+  }
+
+  /* ---------- Agenda: horario de cada evento ---------- */
+  const AG = { fecha: null, lista: [], form: { idProm: '', entrada: '08:00', salida: '13:00', lugar: '' } };
+  async function verAgenda(){
+    AG.fecha = AG.fecha || S.fecha;
+    try { AG.lista = await run('agendaDia', 'Cargando agenda…', S.sup, AG.fecha); } catch(e){ return; }
+    pintarAgenda();
+  }
+  function pintarAgenda(){
+    const F = AG.form;
+    $('#supC').innerHTML = `
+      <div class="card">
+        <label for="agFecha" style="margin-top:0">Fecha</label>
+        <input id="agFecha" type="date" value="${esc(AG.fecha)}" onchange="if(this.value){AG.fecha=this.value;verAgenda()}">
+        <p class="sub">La puntualidad se mide con el horario de cada evento. Si cargas eventos en un mes, solo los días con evento cuentan como día de trabajo.</p>
+      </div>
+      <div class="card">
+        <h3>Asignar evento</h3>
+        <label for="agProm">Promotora</label>
+        <select id="agProm" onchange="AG.form.idProm=this.value"><option value="">Selecciona</option>
+          ${S.proms.map(p => `<option value="${esc(p.id)}" ${F.idProm===p.id?'selected':''}>${esc(p.nombre)}</option>`).join('')}</select>
+        <div class="filtros" style="margin-top:14px">
+          <div><label for="agEnt">Entrada</label><input id="agEnt" type="time" value="${esc(F.entrada)}" onchange="AG.form.entrada=this.value"></div>
+          <div><label for="agSal">Salida</label><input id="agSal" type="time" value="${esc(F.salida)}" onchange="AG.form.salida=this.value"></div>
+        </div>
+        <label for="agLug">Lugar o evento (opcional)</label>
+        <input id="agLug" maxlength="80" value="${esc(F.lugar)}" placeholder="Ej. Degustación Supermercado El Prado" oninput="AG.form.lugar=this.value">
+        <button class="btn primario" onclick="guardarEv()">Guardar evento</button>
+      </div>
+      <h4 style="margin:4px 0 10px">Eventos del ${esc(fechaCorta(AG.fecha))} (${AG.lista.length})</h4>
+      ${AG.lista.length ? AG.lista.map(ev => `
+        <div class="card seg-item">
+          <div class="seg-top"><div><b>${esc(ev.nombre)}</b><small>${esc(ev.entrada)} a ${esc(ev.salida)}${ev.lugar ? ' · ' + esc(ev.lugar) : ''}</small></div></div>
+          <div class="seg-acc"><button class="btn mini no" onclick="borrarEv('${esc(ev.idEv)}')">Quitar</button></div>
+        </div>`).join('') : '<p class="vacio">No hay eventos asignados en esta fecha.</p>'}`;
+  }
+  async function guardarEv(){
+    const F = AG.form;
+    if (!F.idProm) return toast('Elige la promotora', 'error');
+    if (!F.entrada || !F.salida) return toast('Escribe la hora de entrada y de salida', 'error');
+    if (F.salida <= F.entrada) return toast('La salida debe ser después de la entrada', 'error');
+    try {
+      AG.lista = await run('guardarEvento', 'Guardando…', S.sup, Object.assign({ fecha: AG.fecha }, F));
+      F.idProm = ''; pintarAgenda(); toast('Evento guardado ✅', 'ok');
+    } catch(e){}
+  }
+  async function borrarEv(id){
+    try { AG.lista = await run('eliminarEvento', 'Quitando…', S.sup, id, AG.fecha); pintarAgenda(); toast('Evento quitado', 'ok'); } catch(e){}
   }
 
   function verJust(){
