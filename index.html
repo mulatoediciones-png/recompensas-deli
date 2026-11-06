@@ -125,6 +125,7 @@
   .dia{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid #E8EEF2;font-size:14px}
   .dia:first-of-type{border-top:0}
   .dia small{color:var(--mut)}
+  .offline{background:#FFF1D6;color:#8A5A00;border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px;font-weight:600;line-height:1.4}
   .foto img,.avatar img{cursor:zoom-in}
   #visor{position:fixed;inset:0;background:rgba(10,20,28,.92);z-index:40;display:flex;align-items:center;justify-content:center;padding:56px 16px 16px}
   #visor img{max-width:100%;max-height:100%;border-radius:12px;object-fit:contain}
@@ -181,10 +182,13 @@
 
   async function api(fn, ...a){
     let r, j;
-    try { r = await fetch(API, { method: 'POST', body: JSON.stringify({ fn: fn, args: a }) }); }
-    catch(e){ throw new Error('Sin conexión. Revisa tu internet e intenta de nuevo.'); }
+    const red = m => Object.assign(new Error(m), { red: true });
+    const ctl = new AbortController(), tmr = setTimeout(() => ctl.abort(), fn === 'marcar' ? 45000 : 25000);
+    try { r = await fetch(API, { method: 'POST', body: JSON.stringify({ fn: fn, args: a }), signal: ctl.signal }); }
+    catch(e){ throw red('Sin conexión. Revisa tu internet e intenta de nuevo.'); }
+    finally { clearTimeout(tmr); }
     try { j = await r.json(); }
-    catch(e){ throw new Error('El servidor no respondió. Intenta de nuevo en un momento.'); }
+    catch(e){ throw red('El servidor no respondió. Intenta de nuevo en un momento.'); }
     if (!j.ok) throw new Error(String(j.error || 'Error desconocido').replace(/^Error:\s*/,''));
     return j.data;
   }
@@ -231,12 +235,19 @@
 
   /* ---------- Inicio y acceso ---------- */
   async function iniciar(){
-    try { S.proms = await run('listarPromotoras', 'Abriendo…'); } catch(e){ S.proms = []; }
     const id = mem.get('rp_id'), pin = mem.get('rp_pin'), sp = mem.get('rp_sup');
     if (id && pin){
-      try { const d = await run('panelPromotora', 'Cargando tu panel…', id, pin); S.id=id; S.pin=pin; panel(d); return; }
-      catch(e){ mem.del('rp_id'); mem.del('rp_pin'); }
+      S.id = id; S.pin = pin;
+      cargando(true, 'Cargando tu panel…');
+      try { const d = await api('panelPromotora', id, pin); panel(d); sincronizar(); return; }
+      catch(e){
+        if (e.red && cacheGet('rp_panel')) { panelOffline(); return; }
+        if (!e.red) { mem.del('rp_id'); mem.del('rp_pin'); S.id = S.pin = null; toast(e.message, 'error'); }
+      } finally { cargando(false); }
+      S.id = S.pin = null;
     }
+    try { S.proms = await run('listarPromotoras', 'Abriendo…'); cacheSet('rp_proms', S.proms); }
+    catch(e){ S.proms = cacheGet('rp_proms') || []; }
     if (sp){
       try { const d = await run('loginSupervisor', 'Entrando…', sp); abrirSup(sp, d); return; }
       catch(e){ mem.del('rp_sup'); }
@@ -281,7 +292,8 @@
     } catch(e){}
   }
   function salir(){
-    ['rp_id','rp_pin','rp_sup'].forEach(k => mem.del(k));
+    if (OFF.cola.length && !confirm('Tienes ' + OFF.cola.length + ' registro(s) sin enviar. Si sales se perderán. ¿Salir igual?')) return;
+    ['rp_id','rp_pin','rp_sup','rp_panel','rp_listas','rp_cola'].forEach(k => mem.del(k)); OFF.cola = [];
     S.id = S.pin = S.sup = null; V.listas = null; vistaLogin('prom');
   }
 
@@ -289,11 +301,13 @@
   function estadoKpi(v){ return v ? '<span class="chip ok">Cumple</span>' : '<span class="chip no">No cumple aún</span>'; }
 
   function panel(d){
+    if (!d.__off) cacheSet('rp_panel', d);
     const r = d.res;
     const pct = Math.min(100, Math.round(r.seguidores / r.meta * 100));
     const faltan = Math.max(0, r.meta - r.seguidores);
     app.innerHTML = `
       <img class="logo-s" src="${LOGO}" alt="Deli Snacks">
+      <div id="offBanner"></div>
       <header class="top">
         <div><small>${esc(d.mesNombre)}</small><h2>Hola, ${esc(d.nombre.split(' ')[0])}</h2></div>
         <button class="btn mini" onclick="salir()">Salir</button>
@@ -354,11 +368,11 @@
 
       <section class="card" id="cardVenta">
         <h3>Registrar ventas de la pauta</h3>
-        <p class="sub">Elige el comercio, agrega cada producto con las unidades vendidas y el monto que cobraste.</p>
+        <p class="sub">Escribe el comercio, agrega cada producto con las unidades vendidas y el monto que cobraste.</p>
         <div id="formVenta"><p class="vacio">Cargando productos…</p></div>
         <h4>Ventas registradas este mes</h4>
         ${d.ventas && d.ventas.length
-          ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))} · ${v.unidades} unid.${v.estado==='Anulada' ? ' · <b class="rojo">Anulada</b>' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>`
+          ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))} · ${v.unidades} unid.${v.estado==='Anulada' ? ' · <b class="rojo">Anulada</b>' : v.pend ? ' · ⏳ por enviar' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>`
           : '<p class="vacio">Todavía no has registrado ventas este mes.</p>'}
       </section>
 
@@ -375,9 +389,10 @@
 
         <h4>Registrados este mes (${r.seguidores})</h4>
         ${d.segs.length
-          ? `<ul class="lista">${d.segs.map(s => `<li><span>@${esc(s.usuario)}</span><small>${esc(s.plataforma)} · ${esc(fechaCorta(s.fecha))}${s.estado==='Rechazado' ? ' · <b class="rojo">Rechazado</b>' : ''}</small></li>`).join('')}</ul>`
+          ? `<ul class="lista">${d.segs.map(s => `<li><span>@${esc(s.usuario)}</span><small>${esc(s.plataforma)} · ${esc(fechaCorta(s.fecha))}${s.estado==='Rechazado' ? ' · <b class="rojo">Rechazado</b>' : s.pend ? ' · ⏳ por enviar' : ''}</small></li>`).join('')}</ul>`
           : '<p class="vacio">Todavía no has registrado seguidores este mes. ¡Empieza con el primero!</p>'}
       </section>`;
+    pintarBanner(d.__off);
     pintarFormVenta();
   }
 
@@ -388,8 +403,11 @@
     const el = document.getElementById('formVenta');
     if (!el) return;
     if (!V.listas) {
-      try { V.listas = await api('listasVenta', S.id, S.pin); }
-      catch(e){ el.innerHTML = `<p class="vacio">${esc(e.message)}</p>`; return; }
+      try { V.listas = await api('listasVenta', S.id, S.pin); cacheSet('rp_listas', V.listas); }
+      catch(e){
+        V.listas = e.red ? cacheGet('rp_listas') : null;
+        if (!V.listas) { el.innerHTML = `<p class="vacio">${esc(e.message)}</p>`; return; }
+      }
     }
     const L = V.listas;
     if (!L.productos.length) {
@@ -445,13 +463,13 @@
     if (m === '' || isNaN(Number(m)) || Number(m) < 0) return toast('Escribe el monto cobrado', 'error');
     cargando(true, 'Obteniendo ubicación…');
     const pos = await gps();
-    try {
-      const d = await run('registrarVenta', 'Guardando ventas…', S.id, S.pin, V.comercio.trim(),
-        items.map(it => ({ producto: it.producto, unidades: Number(it.unidades) })), m, pos.lat || '', pos.lng || '');
-      V.listas = null;
-      V.comercio = ''; V.items = [{ producto: '', unidades: '' }]; V.monto = '';
-      panel(d); toast('Ventas guardadas ✅', 'ok');
-    } catch(e){}
+    const lista = items.map(it => ({ producto: it.producto, unidades: Number(it.unidades) }));
+    const precio = n => ((V.listas && V.listas.productos.find(p => p.nombre === n)) || {}).precio || 0;
+    const meta = { comercio: V.comercio.trim(), unidades: lista.reduce((a, x) => a + x.unidades, 0),
+      total: Math.round(lista.reduce((a, x) => a + x.unidades * precio(x.producto), 0) * 100) / 100 };
+    const ok = await enviarOEncolar('registrarVenta', 'Guardando ventas…',
+      [S.id, S.pin, meta.comercio, lista, m, pos.lat || '', pos.lng || ''], meta, 'Ventas guardadas ✅');
+    if (ok) { V.comercio = ''; V.items = [{ producto: '', unidades: '' }]; V.monto = ''; pintarFormVenta(); }
   }
 
   function plat(p){
@@ -462,11 +480,9 @@
   async function agregarSeg(){
     const u = $('#usr').value.trim();
     if (!u) return toast('Escribe el usuario del seguidor', 'error');
-    try {
-      const d = await run('registrarSeguidor', 'Guardando seguidor…', S.id, S.pin, S.plat, u);
-      panel(d); toast('Seguidor agregado ✅', 'ok');
-      const i = $('#usr'); if (i) i.focus();
-    } catch(e){}
+    const ok = await enviarOEncolar('registrarSeguidor', 'Guardando seguidor…', [S.id, S.pin, S.plat, u],
+      { plataforma: S.plat, usuario: u.replace(/^@/, '').toLowerCase() }, 'Seguidor agregado ✅');
+    if (ok) { const i = $('#usr'); if (i) i.focus(); }
   }
 
   /* ---------- Selfie de entrada / salida ---------- */
@@ -502,11 +518,76 @@
     cargando(true, 'Preparando la foto…');
     try { b64 = await comprimir(f); cargando(true, 'Obteniendo ubicación…'); pos = await gps(); }
     catch(err){ cargando(false); return toast('No se pudo leer la foto. Intenta de nuevo.', 'error'); }
-    try {
-      const d = await run('marcar', 'Guardando ' + S.tipo.toLowerCase() + '…', S.id, S.pin, S.tipo, b64, pos.lat || '', pos.lng || '');
-      panel(d); toast(S.tipo + ' registrada ✅', 'ok');
-    } catch(err){}
+    await enviarOEncolar('marcar', 'Guardando ' + S.tipo.toLowerCase() + '…',
+      [S.id, S.pin, S.tipo, b64, pos.lat || '', pos.lng || ''], { tipo: S.tipo }, S.tipo + ' registrada ✅');
   });
+
+  /* ---------- Modo sin conexión ---------- */
+  function cacheGet(k){ try { return JSON.parse(mem.get(k) || 'null'); } catch(e){ return null; } }
+  function cacheSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ return false; } }
+  const OFF = { cola: cacheGet('rp_cola') || [], enviando: false };
+  const dosD = n => String(n).padStart(2, '0');
+  const ahoraLocal = () => { const t = new Date(); return { fecha: t.getFullYear() + '-' + dosD(t.getMonth() + 1) + '-' + dosD(t.getDate()), hora: dosD(t.getHours()) + ':' + dosD(t.getMinutes()) }; };
+
+  async function enviarOEncolar(fn, txt, args, meta, okMsg){
+    cargando(true, txt);
+    try { const d = await api(fn, ...args); panel(d); toast(okMsg, 'ok'); return true; }
+    catch(e){
+      if (!e.red) { toast(e.message, 'error'); return false; }
+      const off = ahoraLocal();
+      OFF.cola.push({ fn: fn, args: args.concat([off]), off: off, meta: meta });
+      if (!cacheSet('rp_cola', OFF.cola)) { OFF.cola.pop(); toast('No hay espacio en el celular para guardar sin conexión.', 'error'); return false; }
+      panelOffline();
+      toast('Sin conexión: quedó guardado y se enviará solo cuando vuelva la señal.', 'ok');
+      return true;
+    } finally { cargando(false); }
+  }
+
+  // Panel armado con los últimos datos guardados más lo que está pendiente por enviar.
+  function panelOffline(){
+    const d = cacheGet('rp_panel'); if (!d) return;
+    const hoy = ahoraLocal().fecha;
+    d.__off = true;
+    if (d.fecha !== hoy) { d.fecha = hoy; d.entrada = d.salida = d.vestHoy = null; }
+    OFF.cola.forEach(it => {
+      if (it.fn === 'marcar' && it.off.fecha === hoy) {
+        if (it.meta.tipo === 'Entrada') { d.entrada = it.off.hora + ' (por enviar)'; d.vestHoy = null; } else d.salida = it.off.hora + ' (por enviar)';
+      }
+      if (it.fn === 'registrarSeguidor') { d.segs.unshift({ usuario: it.meta.usuario, plataforma: it.meta.plataforma, fecha: it.off.fecha, estado: 'Válido', pend: true }); d.res.seguidores++; }
+      if (it.fn === 'registrarVenta') d.ventas.unshift({ fecha: it.off.fecha, comercio: it.meta.comercio, unidades: it.meta.unidades, total: it.meta.total, estado: 'Válida', pend: true });
+    });
+    panel(d);
+  }
+
+  function pintarBanner(sinRed){
+    const el = document.getElementById('offBanner'); if (!el) return;
+    const n = OFF.cola.length;
+    el.innerHTML = !n && !sinRed ? '' : `<div class="offline">📶 ${OFF.enviando ? 'Enviando registros guardados…' : sinRed ? 'Sin conexión: estás viendo tus últimos datos guardados.' : 'Hay registros guardados sin enviar.'}
+      ${n ? `<br>${n} registro(s) por enviar. Se envían solos cuando vuelve la señal.` : ''}
+      ${n && !OFF.enviando ? '<button class="btn mini" style="margin-top:8px" onclick="sincronizar()">Reintentar ahora</button>' : ''}</div>`;
+  }
+
+  async function sincronizar(){
+    if (OFF.enviando || !OFF.cola.length) return;
+    OFF.enviando = true; pintarBanner();
+    let ultimo = null, enviados = 0;
+    while (OFF.cola.length) {
+      const it = OFF.cola[0];
+      try { ultimo = await api(it.fn, ...it.args); enviados++; }
+      catch(e){
+        if (e.red) break;
+        toast('Un registro guardado no se pudo cargar: ' + e.message, 'error');
+      }
+      OFF.cola.shift(); cacheSet('rp_cola', OFF.cola);
+    }
+    OFF.enviando = false;
+    if (S.id && !S.sup) {
+      if (ultimo) panel(ultimo); else if (OFF.cola.length) pintarBanner(); else { try { panel(await api('panelPromotora', S.id, S.pin)); } catch(e){ pintarBanner(); } }
+    }
+    if (enviados && !OFF.cola.length) toast('Registros sin conexión enviados ✅', 'ok');
+  }
+  window.addEventListener('online', sincronizar);
+  setInterval(sincronizar, 30000);
 
   /* ---------- Panel del supervisor ---------- */
   async function entrarSup(){
@@ -575,6 +656,7 @@
               <b>${esc(x.nombre)}</b>
               <small>Entrada ${esc(x.hora)} · ${x.lat ? `<a href="https://maps.google.com/?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">Ver ubicación</a>` : 'sin ubicación'}</small>
               <span class="chip ${cls(x.vest)}">${esc(x.vest)}</span>
+              ${x.off ? `<span class="chip" title="Registrado sin conexión">📶 ${esc(x.off)}</span>` : ''}
               <div class="acciones">
                 <button class="btn mini ok" onclick="vest('${esc(x.reg)}','Aprobada')">Aprobar</button>
                 <button class="btn mini no" onclick="vest('${esc(x.reg)}','Falta')">Falta de uniforme</button>
@@ -671,7 +753,7 @@
     $('#sgLista').innerHTML = f.length ? vis.map(x => `
       <div class="card seg-item" id="sg_${x.fila}">
         <div class="seg-top">
-          <div><b>@${esc(x.usuario)}</b><small>${esc(x.plataforma)} · ${esc(x.nombre)} · ${esc(fechaCorta(x.fecha))} ${esc(x.hora)}</small></div>
+          <div><b>@${esc(x.usuario)}</b><small>${esc(x.plataforma)} · ${esc(x.nombre)} · ${esc(fechaCorta(x.fecha))} ${esc(x.hora)}</small>${x.off ? `<span class="chip" title="Registrado sin conexión">📶 ${esc(x.off)}</span>` : ''}</div>
           <span class="chip ${etq[x.estado][0]}">${etq[x.estado][1]}</span>
         </div>
         <div class="seg-acc">
@@ -726,7 +808,7 @@
     $('#vsLista').innerHTML = VS.lista.length ? vis.map(v => `
       <div class="card seg-item">
         <div class="seg-top">
-          <div><b>${esc(v.comercio)}</b><small>${esc(v.nombre)} · ${esc(fechaCorta(v.fecha))} ${esc(v.hora)} · ${v.unidades} unid.</small></div>
+          <div><b>${esc(v.comercio)}</b><small>${esc(v.nombre)} · ${esc(fechaCorta(v.fecha))} ${esc(v.hora)} · ${v.unidades} unid.</small>${v.off ? `<span class="chip" title="Registrado sin conexión">📶 ${esc(v.off)}</span>` : ''}</div>
           ${v.estado === 'Anulada' ? '<span class="chip no">Anulada</span>' : dif(v) ? '<span class="chip no">No coincide</span>' : '<span class="chip ok">Válida</span>'}
         </div>
         <ul class="v-det">${v.detalle.map(x => `<li><span>${esc(x.producto)} × ${x.unidades}</span><span>${dinero(x.subtotal)}</span></li>`).join('')}</ul>
@@ -781,7 +863,7 @@
         <h3>Asistencia del mes (${d.dias.length} días)</h3>
         ${d.dias.length ? d.dias.map(x => `
           <div class="dia">
-            <span><b>${esc(fechaCorta(x.fecha))}</b><br><small>Entrada ${esc(x.entrada || '—')} · Salida ${esc(x.salida || '—')}</small></span>
+            <span><b>${esc(fechaCorta(x.fecha))}</b><br><small>Entrada ${esc(x.entrada || '—')} · Salida ${esc(x.salida || '—')}</small>${x.off ? '<br><small>📶 ' + esc(x.off) + '</small>' : ''}</span>
             <span>${x.entrada ? `<span class="chip ${vcls(x.vest)}">${esc(x.vest)}</span>` : '<span class="chip no">Sin entrada</span>'}
             ${x.foto ? ` <button class="btn mini" onclick="verFotoGrande('${esc(x.foto)}')">Foto</button>` : ''}
             ${x.lat ? ` <a class="btn mini" href="https://maps.google.com/?q=${encodeURIComponent(x.lat + ',' + x.lng)}" target="_blank" rel="noopener">Mapa</a>` : ''}</span>
@@ -814,7 +896,7 @@
     el.innerHTML = `<div class="resumen"><span class="chip">${n('Válido')} sin revisar</span><span class="chip ok">${n('Verificado')} verificados</span><span class="chip no">${n('Rechazado')} rechazados</span></div>` +
       (L.length ? L.slice(0, DS.ver).map(x => `
         <div class="seg-det">
-          <div class="seg-top"><div><b>@${esc(x.usuario)}</b><small>${esc(x.plataforma)} · ${esc(fechaCorta(x.fecha))} ${esc(x.hora)}</small></div>
+          <div class="seg-top"><div><b>@${esc(x.usuario)}</b><small>${esc(x.plataforma)} · ${esc(fechaCorta(x.fecha))} ${esc(x.hora)}${x.off ? ' · 📶 ' + esc(x.off) : ''}</small></div>
             <span class="chip ${etq[x.estado][0]}">${etq[x.estado][1]}</span></div>
           <div class="seg-acc" style="margin-top:8px">
             <a class="btn mini" href="${perfilUrl(x)}" target="_blank" rel="noopener">Ver perfil ↗</a>
