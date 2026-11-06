@@ -133,7 +133,8 @@
   #visor .cerrar{position:absolute;top:calc(12px + env(safe-area-inset-top));right:12px;width:44px;height:44px;border-radius:50%;border:0;background:#fff;color:var(--os);font-size:20px;font-weight:700;cursor:pointer}
   .seg-det{padding:10px 0;border-top:1px solid #E8EEF2}
   .seg-det:first-of-type{border-top:0}
-  .v-fila{display:grid;grid-template-columns:1fr 86px 36px;gap:8px;align-items:center;margin-top:8px}
+  .v-fila{display:grid;grid-template-columns:1fr 86px 36px;gap:8px;align-items:center;margin-top:12px}
+  .v-fila .v-prod{grid-column:1/-1}
   .v-fila input,.v-fila select{padding:11px 10px}
   .quitar{width:36px;height:44px;border-radius:10px;border:1.5px solid var(--bd);background:#fff;color:var(--no);font-size:18px;font-weight:700;cursor:pointer}
   .v-total{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding-top:12px;border-top:1px solid #E8EEF2;font-weight:700}
@@ -368,11 +369,11 @@
 
       <section class="card" id="cardVenta">
         <h3>Registrar ventas de la pauta</h3>
-        <p class="sub">Escribe el comercio, agrega cada producto con las unidades vendidas y el monto que cobraste.</p>
+        <p class="sub">Escribe el comercio, agrega cada producto con su presentación y cantidad, y el monto que cobraste.</p>
         <div id="formVenta"><p class="vacio">Cargando productos…</p></div>
         <h4>Ventas registradas este mes</h4>
         ${d.ventas && d.ventas.length
-          ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))} · ${v.unidades} unid.${v.estado==='Anulada' ? ' · <b class="rojo">Anulada</b>' : v.pend ? ' · ⏳ por enviar' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>`
+          ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))}${v.estado==='Anulada' ? ' · <b class="rojo">Anulada</b>' : v.pend ? ' · ⏳ por enviar' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>`
           : '<p class="vacio">Todavía no has registrado ventas este mes.</p>'}
       </section>
 
@@ -398,7 +399,9 @@
 
   /* ---------- Registro de ventas ---------- */
   const dinero = n => '$' + (Number(n) || 0).toFixed(2);
-  const V = { listas: null, comercio: '', items: [{ producto: '', unidades: '' }], monto: '' };
+  const PRES = ['Unidad', 'Manga', 'Bulto'];
+  const nuevoItem = () => ({ producto: '', presentacion: 'Unidad', unidades: '' });
+  const V = { listas: null, comercio: '', items: [nuevoItem()], monto: '' };
   async function pintarFormVenta(){
     const el = document.getElementById('formVenta');
     if (!el) return;
@@ -414,8 +417,6 @@
       el.innerHTML = '<p class="vacio">Aún no hay productos cargados. Avísale al supervisor para que los agregue.</p>';
       return;
     }
-    const precio = n => (L.productos.find(p => p.nombre === n) || {}).precio || 0;
-    const total = V.items.reduce((a, it) => a + precio(it.producto) * (parseInt(it.unidades, 10) || 0), 0);
     el.innerHTML = `
       <label for="vCom">¿En qué comercio estás?</label>
       <input id="vCom" list="vComs" autocomplete="off" maxlength="80" placeholder="Ej. Bodega La Esquina, San Diego"
@@ -425,29 +426,25 @@
       <label>Productos vendidos</label>
       ${V.items.map((it, i) => `
         <div class="v-fila">
-          <select aria-label="Producto ${i+1}" onchange="V.items[${i}].producto=this.value;pintarFormVenta()">
-            <option value="">Producto</option>
-            ${L.productos.map(p => `<option value="${esc(p.nombre)}" ${it.producto===p.nombre?'selected':''}>${esc(p.nombre)} · ${dinero(p.precio)}</option>`).join('')}
+          <select class="v-prod" aria-label="Producto ${i+1}" onchange="V.items[${i}].producto=this.value">
+            <option value="">Elige el producto</option>
+            ${L.productos.map(p => `<option value="${esc(p.nombre)}" ${it.producto===p.nombre?'selected':''}>${esc(p.nombre)}</option>`).join('')}
           </select>
-          <input aria-label="Unidades ${i+1}" type="number" inputmode="numeric" min="1" step="1" placeholder="Unid." value="${esc(it.unidades)}"
-            oninput="V.items[${i}].unidades=this.value;actTotal()" onchange="pintarFormVenta()">
+          <select aria-label="Presentación ${i+1}" onchange="V.items[${i}].presentacion=this.value">
+            ${PRES.map(x => `<option ${it.presentacion===x?'selected':''}>${x}</option>`).join('')}
+          </select>
+          <input aria-label="Cantidad ${i+1}" type="number" inputmode="numeric" min="1" step="1" placeholder="Cant." value="${esc(it.unidades)}"
+            oninput="V.items[${i}].unidades=this.value">
           <button class="quitar" aria-label="Quitar producto ${i+1}" onclick="quitarItem(${i})">×</button>
         </div>`).join('')}
-      <button class="btn secundario" onclick="V.items.push({producto:'',unidades:''});pintarFormVenta()">+ Agregar otro producto</button>
-      <div class="v-total"><span>Total según lista</span><b id="vTotal">${dinero(total)}</b></div>
+      <button class="btn secundario" onclick="V.items.push(nuevoItem());pintarFormVenta()">+ Agregar otro producto</button>
       <label for="vMonto">Monto cobrado ($)</label>
       <input id="vMonto" inputmode="decimal" placeholder="Ej. 25.50" value="${esc(V.monto)}" oninput="V.monto=this.value">
       <button class="btn primario" onclick="guardarVenta()">Guardar ventas</button>`;
   }
-  function actTotal(){
-    const L = V.listas; if (!L) return;
-    const precio = n => (L.productos.find(p => p.nombre === n) || {}).precio || 0;
-    const t = V.items.reduce((a, it) => a + precio(it.producto) * (parseInt(it.unidades, 10) || 0), 0);
-    const el = document.getElementById('vTotal'); if (el) el.textContent = dinero(t);
-  }
   function quitarItem(i){
     V.items.splice(i, 1);
-    if (!V.items.length) V.items.push({ producto: '', unidades: '' });
+    if (!V.items.length) V.items.push(nuevoItem());
     pintarFormVenta();
   }
   async function guardarVenta(){
@@ -457,19 +454,18 @@
     for (const it of items) {
       const u = Number(it.unidades);
       if (!it.producto) return toast('Elige el producto en todas las filas', 'error');
-      if (!(Number.isInteger(u) && u > 0)) return toast('Revisa las unidades de ' + it.producto, 'error');
+      if (!(Number.isInteger(u) && u > 0)) return toast('Revisa la cantidad de ' + it.producto, 'error');
     }
     const m = String(V.monto).trim().replace(',', '.');
-    if (m === '' || isNaN(Number(m)) || Number(m) < 0) return toast('Escribe el monto cobrado', 'error');
+    if (m === '' || isNaN(Number(m)) || Number(m) <= 0) return toast('Escribe el monto cobrado', 'error');
     cargando(true, 'Obteniendo ubicación…');
     const pos = await gps();
-    const lista = items.map(it => ({ producto: it.producto, unidades: Number(it.unidades) }));
-    const precio = n => ((V.listas && V.listas.productos.find(p => p.nombre === n)) || {}).precio || 0;
-    const meta = { comercio: V.comercio.trim(), unidades: lista.reduce((a, x) => a + x.unidades, 0),
-      total: Math.round(lista.reduce((a, x) => a + x.unidades * precio(x.producto), 0) * 100) / 100 };
+    const lista = items.map(it => ({ producto: it.producto, presentacion: it.presentacion || 'Unidad', cantidad: Number(it.unidades) }));
+    const meta = { comercio: V.comercio.trim(), unidades: lista.reduce((a, x) => a + x.cantidad, 0),
+      total: Math.round(Number(m) * 100) / 100 };
     const ok = await enviarOEncolar('registrarVenta', 'Guardando ventas…',
       [S.id, S.pin, meta.comercio, lista, m, pos.lat || '', pos.lng || ''], meta, 'Ventas guardadas ✅');
-    if (ok) { V.comercio = ''; V.items = [{ producto: '', unidades: '' }]; V.monto = ''; pintarFormVenta(); }
+    if (ok) { V.comercio = ''; V.items = [nuevoItem()]; V.monto = ''; pintarFormVenta(); }
   }
 
   function plat(p){
@@ -798,21 +794,18 @@
   }
   function pintarVen(){
     const val = VS.lista.filter(v => v.estado !== 'Anulada');
-    const tot = val.reduce((a, v) => a + v.total, 0), cob = val.reduce((a, v) => a + v.monto, 0);
-    const dif = v => Math.abs(v.total - v.monto) > 0.009;
+    const cob = val.reduce((a, v) => a + v.monto, 0);
     const res = $('#vsRes'); if (!res) return;
-    res.innerHTML = `<span class="chip ok">${val.length} ventas · ${dinero(tot)} según lista</span>
-      <span class="chip">Cobrado: ${dinero(cob)}</span>
-      ${val.filter(dif).length ? `<span class="chip no">${val.filter(dif).length} no coinciden</span>` : ''}`;
+    res.innerHTML = `<span class="chip ok">${val.length} ventas · ${dinero(cob)} cobrado</span>`;
     const vis = VS.lista.slice(0, VS.ver);
     $('#vsLista').innerHTML = VS.lista.length ? vis.map(v => `
       <div class="card seg-item">
         <div class="seg-top">
-          <div><b>${esc(v.comercio)}</b><small>${esc(v.nombre)} · ${esc(fechaCorta(v.fecha))} ${esc(v.hora)} · ${v.unidades} unid.</small>${v.off ? `<span class="chip" title="Registrado sin conexión">📶 ${esc(v.off)}</span>` : ''}</div>
-          ${v.estado === 'Anulada' ? '<span class="chip no">Anulada</span>' : dif(v) ? '<span class="chip no">No coincide</span>' : '<span class="chip ok">Válida</span>'}
+          <div><b>${esc(v.comercio)}</b><small>${esc(v.nombre)} · ${esc(fechaCorta(v.fecha))} ${esc(v.hora)}</small>${v.off ? `<span class="chip" title="Registrado sin conexión">📶 ${esc(v.off)}</span>` : ''}</div>
+          ${v.estado === 'Anulada' ? '<span class="chip no">Anulada</span>' : '<span class="chip ok">Válida</span>'}
         </div>
-        <ul class="v-det">${v.detalle.map(x => `<li><span>${esc(x.producto)} × ${x.unidades}</span><span>${dinero(x.subtotal)}</span></li>`).join('')}</ul>
-        <div class="v-montos"><span>Según lista: ${dinero(v.total)}</span><span>Cobrado: ${dinero(v.monto)}</span></div>
+        <ul class="v-det">${v.detalle.map(x => `<li><span>${esc(x.producto)}</span><span>${x.unidades} ${esc(x.unidades === 1 ? x.presentacion.toLowerCase() : ({Unidad:'unidades',Manga:'mangas',Bulto:'bultos'})[x.presentacion] || 'unidades')}</span></li>`).join('')}</ul>
+        <div class="v-montos"><span>Cobrado: ${dinero(v.monto)}</span></div>
         <div class="seg-acc">
           ${v.lat ? `<a class="btn mini" href="https://maps.google.com/?q=${encodeURIComponent(v.lat + ',' + v.lng)}" target="_blank" rel="noopener">Ver ubicación ↗</a>` : '<span class="chip">Sin ubicación</span>'}
           ${v.estado === 'Anulada' ? `<button class="btn mini" onclick="cambiarVen('${esc(v.idVenta)}','Válida')">↺ Restaurar</button>`
@@ -882,7 +875,7 @@
 
       <div class="card">
         <h3>Ventas (${vVal.length} · ${dinero(vVal.reduce((a, v) => a + v.total, 0))})</h3>
-        ${d.ventas.length ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))} · ${v.unidades} unid.${v.estado === 'Anulada' ? ' · <b class="rojo">Anulada</b>' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>` : '<p class="vacio">Sin ventas este mes.</p>'}
+        ${d.ventas.length ? `<ul class="lista">${d.ventas.map(v => `<li><span>${esc(v.comercio)}<br><small>${esc(fechaCorta(v.fecha))}${v.estado === 'Anulada' ? ' · <b class="rojo">Anulada</b>' : ''}</small></span><b>${dinero(v.total)}</b></li>`).join('')}</ul>` : '<p class="vacio">Sin ventas este mes.</p>'}
       </div>`;
     DS.ver = 30; pintarSegDet();
     window.scrollTo(0, 0);
